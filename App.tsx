@@ -6,15 +6,24 @@ import { Greeting } from './types';
 import * as firebaseService from './services/firebaseService';
 import { GoogleGenAI } from '@google/genai';
 import Modal from './components/Modal';
+import SharedGreetingPlayer from './components/SharedGreetingPlayer'; // New import
 
 function App() {
   const [greetings, setGreetings] = useState<Greeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+  const [sharedGreetingId, setSharedGreetingId] = useState<string | null>(null);
 
   // Initialize Firebase on component mount
   useEffect(() => {
     firebaseService.initFirebase();
+  }, []);
+
+  // Check URL for shared greeting ID
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('greetingId');
+    setSharedGreetingId(id);
   }, []);
 
   const fetchGreetings = useCallback(async () => {
@@ -30,8 +39,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    fetchGreetings();
-  }, [fetchGreetings]);
+    // Only fetch greetings if not viewing a shared greeting
+    if (!sharedGreetingId) {
+      fetchGreetings();
+    }
+  }, [fetchGreetings, sharedGreetingId]);
 
   const handleGreetingCreated = useCallback((newGreeting: Greeting) => {
     setGreetings((prev) => [...prev, newGreeting]);
@@ -73,6 +85,15 @@ function App() {
     // to ensure it uses the most up-to-date API key from the dialog.
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }, []);
+
+  // Conditional rendering based on sharedGreetingId
+  if (sharedGreetingId) {
+    return (
+      <div className="container mx-auto p-4 md:p-8">
+        <SharedGreetingPlayer greetingId={sharedGreetingId} />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4 md:p-8">

@@ -18,6 +18,7 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const videoLoadTimeoutRef = useRef<number | null>(null);
+  const [copied, setCopied] = useState(false); // New state for copy feedback
 
   // Internal helper to play audio without managing `isPlayingAudio` state directly
   const _playAudioInternal = useCallback(async () => {
@@ -240,6 +241,18 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
     }
   }, [greeting.audioUrl, greeting.id]);
 
+  const handleShareGreeting = useCallback(() => {
+    if (greeting.id) {
+      const shareUrl = `${window.location.origin}${window.location.pathname}?greetingId=${greeting.id}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000); // Reset "Copied!" message after 2 seconds
+      }).catch(err => {
+        console.error('Failed to copy URL:', err);
+        alert('Failed to copy URL. Please copy it manually: ' + shareUrl);
+      });
+    }
+  }, [greeting.id]);
 
   return (
     <div className="relative bg-gray-800 rounded-lg shadow-xl p-6 mb-6 border border-gray-700 overflow-hidden">
@@ -383,6 +396,20 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
               <path fillRule="evenodd" d="M10 2a1 1 0 011 1v7a1 1 0 11-2 0V3a1 1 0 011-1z" clipRule="evenodd" />
             </svg>
             Download Audio
+          </Button>
+        )}
+        {greeting.videoUrl && greeting.audioUrl && (
+          <Button
+            onClick={handleShareGreeting}
+            variant="secondary"
+            className="w-full sm:w-auto relative"
+            aria-label="Share this greeting via link"
+            title="Share Greeting"
+          >
+            <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M13 8V2H7v6H2l8 8 8-8h-5zM2 18h16v2H2v-2z" clipRule="evenodd" />
+            </svg>
+            {copied ? 'Copied!' : 'Share Greeting'}
           </Button>
         )}
       </div>

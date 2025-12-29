@@ -1,6 +1,6 @@
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Greeting } from '../types';
 
@@ -74,6 +74,35 @@ export const getGreetings = async (): Promise<Greeting[]> => {
     return greetings;
   } catch (e) {
     console.error("Error getting documents: ", e);
+    throw e;
+  }
+};
+
+export const getGreetingById = async (id: string): Promise<Greeting | null> => {
+  try {
+    if (!db) throw new Error("Firestore not initialized.");
+    const docRef = doc(db, "greetings", id);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        occasion: data.occasion,
+        message: data.message,
+        imageUrl: data.imageUrl,
+        audioUrl: data.audioUrl,
+        videoUrl: data.videoUrl,
+        voiceGender: data.voiceGender,
+        voiceType: data.voiceType,
+        createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now(),
+      };
+    } else {
+      console.log("No such document!");
+      return null;
+    }
+  } catch (e) {
+    console.error("Error getting document by ID: ", e);
     throw e;
   }
 };
