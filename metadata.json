@@ -1,0 +1,7 @@
+{
+  "name": "e-Greetz",
+  "description": "Create personalized cinematic video greetings with custom messages, images, and AI voices. Share your heartfelt wishes with a unique touch.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
