@@ -13,9 +13,11 @@ interface GreetingCardProps {
 const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false); // New state for video player visibility
+  const [videoPlaybackLoading, setVideoPlaybackLoading] = useState(false); // New state for video loading spinner
   const audioRef = useRef<HTMLAudioElement | null>(null); // For native audio playback (not currently used for PCM)
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const videoLoadTimeoutRef = useRef<number | null>(null);
 
   // Internal helper to play audio without managing `isPlayingAudio` state directly
   const _playAudioInternal = useCallback(async () => {
@@ -60,6 +62,7 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
     setVideoError(null); // Clear video error if playing audio separately
     setIsPlayingAudio(true);
     setShowVideoPlayer(false); // Hide video player if audio is played separately
+    setVideoPlaybackLoading(false); // Ensure video loading is off
 
     try {
       await _playAudioInternal();
@@ -88,37 +91,74 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
     setIsPlayingAudio(false); // Reset audio state
     setVideoError(null); // Clear previous video error
     setShowVideoPlayer(true); // Show the video player
+    setVideoPlaybackLoading(true); // Start video loading spinner
 
-    // Start audio simultaneously if available
-    if (greeting.audioUrl) {
-      try {
-        await _playAudioInternal(); // Start audio
-      } catch (e) {
-        console.error("Error starting synchronized audio for video:", e);
-        // Don't block video playback, but log the error
-      }
+    // Clear any previous timeout
+    if (videoLoadTimeoutRef.current) {
+      clearTimeout(videoLoadTimeoutRef.current);
+      videoLoadTimeoutRef.current = null;
     }
 
-    // Then start video
+    // A small delay to ensure the video element is rendered before attempting to load
     setTimeout(() => {
       if (videoRef.current) {
-        videoRef.current.load(); // Ensure video is loaded
-        videoRef.current.play().catch(e => {
-          console.error("Error playing video:", e);
-          setVideoError(`Could not play video: ${e.message}. Check browser console for details.`);
-        });
-        // Optional: requestFullscreen after play to prevent issues with browser autoplay policies
-        videoRef.current.requestFullscreen().catch(e => {
-          console.warn("Could not enter fullscreen:", e);
-        });
+        const videoElement = videoRef.current;
+        videoElement.load(); // Ensure video is loaded
+
+        const startBothPlayback = async () => {
+          if (videoLoadTimeoutRef.current) {
+            clearTimeout(videoLoadTimeoutRef.current);
+            videoLoadTimeoutRef.current = null;
+          }
+          setVideoPlaybackLoading(false); // Hide loading spinner
+
+          // Start audio first
+          if (greeting.audioUrl) {
+            try {
+              await _playAudioInternal();
+            } catch (e) {
+              console.error("Error starting synchronized audio for video:", e);
+              // Don't block video playback, but log the error
+            }
+          }
+
+          // Then start video
+          videoElement.play().catch(e => {
+            console.error("Error playing video:", e);
+            setVideoError(`Could not play video: ${e.message}. Ensure your browser allows autoplay or try clicking play manually. The AI-generated video does not include embedded audio; the audio plays alongside.`);
+          });
+          videoElement.requestFullscreen().catch(e => {
+            console.warn("Could not enter fullscreen:", e);
+          });
+        };
+
+        const onVideoCanPlayThrough = () => {
+          videoElement.removeEventListener('canplaythrough', onVideoCanPlayThrough);
+          startBothPlayback();
+        };
+
+        videoElement.addEventListener('canplaythrough', onVideoCanPlayThrough);
+
+        // Fallback timeout in case 'canplaythrough' doesn't fire or takes too long
+        videoLoadTimeoutRef.current = window.setTimeout(() => {
+          videoElement.removeEventListener('canplaythrough', onVideoCanPlayThrough);
+          console.warn("Video 'canplaythrough' timeout, attempting to play anyway.");
+          startBothPlayback();
+        }, 10000); // 10 seconds timeout
       }
-    }, 50); // Small delay to ensure render
+    }, 50); // Small initial delay to ensure render
   }, [greeting.audioUrl, _playAudioInternal]);
 
 
   const handleCloseVideoPlayer = useCallback(() => {
+    if (videoLoadTimeoutRef.current) {
+      clearTimeout(videoLoadTimeoutRef.current);
+      videoLoadTimeoutRef.current = null;
+    }
     if (videoRef.current) {
       videoRef.current.pause(); // Pause video when closing
+      // Ensure the 'canplaythrough' listener is removed if it was pending
+      videoRef.current.removeEventListener('canplaythrough', () => {}); // Remove any pending listeners
       if (document.fullscreenElement === videoRef.current) {
         document.exitFullscreen().catch(e => console.warn("Could not exit fullscreen:", e));
       }
@@ -129,6 +169,7 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
     }
     setIsPlayingAudio(false); // Reset audio state
     setShowVideoPlayer(false);
+    setVideoPlaybackLoading(false); // Reset video loading state
     setVideoError(null);
   }, []);
 
@@ -160,7 +201,8 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
   // Handle video loading errors
   const handleVideoError = useCallback((event: React.SyntheticEvent<HTMLVideoElement, Event>) => {
     console.error("Video element error:", event);
-    setVideoError("Failed to load video. It might be unavailable or corrupt. Check console for details.");
+    setVideoError("Failed to load video. It might be unavailable or corrupt, or network issues prevented loading. The AI-generated video does not include embedded audio; the audio plays alongside.");
+    setVideoPlaybackLoading(false); // Hide loading spinner on error
     setShowVideoPlayer(true); // Keep player visible to show error message
   }, []);
 
@@ -206,22 +248,51 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
             onClick={handlePlayVideo} // Use the new handler
             className="w-full sm:w-auto"
             aria-controls={`video-player-${greeting.id}`}
+            disabled={videoPlaybackLoading} // Disable button while loading
           >
-            <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M2 6a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2V6zM2 14a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zM14 14a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2z" />
-            </svg>
-            Play Cinematic Video
+            {videoPlaybackLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg> Loading Video...
+              </>
+            ) : (
+              <>
+                <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2V6zM2 14a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zM14 14a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2z" />
+                </svg>
+                Play Cinematic Video
+              </>
+            )}
           </Button>
         )}
       </div>
 
       {showVideoPlayer && greeting.videoUrl && (
-        <div className="mt-4 p-4 bg-gray-900 rounded-lg">
+        <div className="mt-4 p-4 bg-gray-900 rounded-lg relative min-h-[200px] flex items-center justify-center">
+          {videoPlaybackLoading && (
+            <div className="absolute inset-0 bg-gray-800 bg-opacity-90 flex flex-col items-center justify-center rounded-lg z-10">
+              <svg className="animate-spin h-8 w-8 text-white mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p className="text-white text-lg">Buffering video for synchronized playback...</p>
+              <p className="text-gray-400 text-sm mt-1">This ensures audio and video start together.</p>
+            </div>
+          )}
           {videoError && (
-            <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded relative mb-4" role="alert">
+            <div className="absolute inset-0 bg-red-900 bg-opacity-90 border border-red-700 text-red-200 px-4 py-3 rounded-lg flex flex-col items-center justify-center text-center z-10" role="alert">
               <strong className="font-bold">Video Error:</strong>
               <span className="block sm:inline ml-2">{videoError}</span>
-              <p className="text-sm mt-2">Possible causes: Invalid API Key (requires paid account), network issues, or video generation failure. The generated video from the AI does not include embedded audio. The audio will play alongside the video. Please check your browser's console for more details.</p>
+              <p className="text-sm mt-2">The generated video from the AI does not include embedded audio. The audio plays simultaneously alongside the video. Please check your browser's console for more details.</p>
+              <button
+                onClick={handleCloseVideoPlayer}
+                className="mt-4 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200"
+                aria-label="Close error message"
+              >
+                Close Error
+              </button>
             </div>
           )}
           <video
@@ -229,9 +300,10 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
             id={`video-player-${greeting.id}`}
             src={greeting.videoUrl}
             controls
-            className="w-full max-w-lg mx-auto rounded-md shadow-lg"
+            className={`w-full max-w-lg mx-auto rounded-md shadow-lg ${videoPlaybackLoading || videoError ? 'invisible' : ''}`}
             aria-label="Cinematic greeting video player"
             onError={handleVideoError}
+            preload="auto" // Suggest browser to preload video
           ></video>
           <div className="flex justify-center mt-4">
             <Button
@@ -239,6 +311,7 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
               variant="secondary"
               className="w-full sm:w-auto"
               aria-label="Close video player"
+              disabled={videoPlaybackLoading}
             >
               Close Video
             </Button>
