@@ -275,7 +275,7 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
 
 
       setLoadingAudio(false);
-      setVideoGenerationMessage('Audio generated. Now generating cinematic video (this may take a few minutes)...');
+      setVideoGenerationMessage('Audio generated. Now generating cinematic video (this video does not include embedded audio, it plays alongside). This may take a few minutes...');
 
       // 2. Generate Video
       await onApiKeyPrompt(); // Ensure API key is selected before generating video
@@ -318,7 +318,7 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
 
 
       while (!operation.done) {
-        setVideoGenerationMessage(`Generating video... Please wait (status: ${operation.metadata?.state || 'in progress'}).`);
+        setVideoGenerationMessage(`Generating video... Please wait (status: ${operation.metadata?.state || 'in progress'}). Note: The video itself will not contain embedded audio.`);
         await new Promise((resolve) => setTimeout(resolve, 10000)); // Poll every 10 seconds
         operation = await ai.operations.getVideosOperation({ operation: operation });
       }

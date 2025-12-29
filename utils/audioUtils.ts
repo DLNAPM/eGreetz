@@ -1,6 +1,5 @@
 
-
-import { Blob } from '@google/genai';
+import { Blob as GenAIBlob } from '@google/genai'; // Renamed to avoid conflict with DOM Blob
 import { OUTPUT_AUDIO_SAMPLE_RATE } from '../constants';
 
 /**
@@ -66,9 +65,9 @@ export async function decodeAudioData(
  * Creates a Blob object for audio input, encoding Float32Array to Int16Array PCM.
  * @param data Audio data as Float32Array.
  * @param sampleRate Sample rate of the audio (e.g., 16000 for Live API).
- * @returns Blob object with base64 encoded PCM data.
+ * @returns GenAIBlob object with base64 encoded PCM data.
  */
-export function createAudioBlob(data: Float32Array, sampleRate: number): Blob {
+export function createAudioBlob(data: Float32Array, sampleRate: number): GenAIBlob {
   const l = data.length;
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {
@@ -124,4 +123,54 @@ export async function playAudioBuffer(audioBuffer: AudioBuffer) {
   source.start(nextStartTime);
   nextStartTime += audioBuffer.duration;
   audioSources.add(source);
+}
+
+/**
+ * Creates a WAV Blob from raw 16-bit PCM audio data.
+ * @param pcmData 16-bit PCM audio data as Uint8Array.
+ * @param sampleRate Sample rate of the audio.
+ * @param numChannels Number of audio channels.
+ * @returns A Blob object representing the WAV file.
+ */
+export function createWavBlobFromPCM(
+  pcmData: Uint8Array,
+  sampleRate: number,
+  numChannels: number,
+): Blob {
+  const HEADER_LENGTH = 44; // Standard WAV header length
+  const dataLength = pcmData.byteLength;
+  const buffer = new ArrayBuffer(HEADER_LENGTH + dataLength);
+  const view = new DataView(buffer);
+
+  // RIFF chunk descriptor
+  writeString(view, 0, 'RIFF'); // Chunk ID
+  view.setUint32(4, 36 + dataLength, true); // Chunk size
+  writeString(view, 8, 'WAVE'); // Format
+
+  // FMT sub-chunk
+  writeString(view, 12, 'fmt '); // Subchunk1 ID
+  view.setUint32(16, 16, true); // Subchunk1 size (16 for PCM)
+  view.setUint16(20, 1, true); // Audio format (1 for PCM)
+  view.setUint16(22, numChannels, true); // Num channels
+  view.setUint32(24, sampleRate, true); // Sample rate
+  view.setUint32(28, sampleRate * numChannels * 2, true); // Byte rate (SampleRate * NumChannels * BytesPerSample)
+  view.setUint16(32, numChannels * 2, true); // Block align (NumChannels * BytesPerSample)
+  view.setUint16(34, 16, true); // Bits per sample (16 for Int16Array)
+
+  // DATA sub-chunk
+  writeString(view, 36, 'data'); // Subchunk2 ID
+  view.setUint32(40, dataLength, true); // Subchunk2 size
+
+  // Write PCM data
+  const pcmView = new Uint8Array(buffer, HEADER_LENGTH);
+  pcmView.set(pcmData);
+
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+// Helper function to write a string to DataView
+function writeString(view: DataView, offset: number, s: string) {
+  for (let i = 0; i < s.length; i++) {
+    view.setUint8(offset + i, s.charCodeAt(i));
+  }
 }

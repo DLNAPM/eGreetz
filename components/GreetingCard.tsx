@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Greeting } from '../types';
 import Button from './Button';
-import { getOutputAudioContext, playAudioBuffer, decodeAudioData, decode, stopAllAudio } from '../utils/audioUtils';
+import { getOutputAudioContext, playAudioBuffer, decodeAudioData, decode, stopAllAudio, createWavBlobFromPCM } from '../utils/audioUtils';
 import { OUTPUT_AUDIO_SAMPLE_RATE } from '../constants';
 
 interface GreetingCardProps {
@@ -125,7 +125,7 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
           // Then start video
           videoElement.play().catch(e => {
             console.error("Error playing video:", e);
-            setVideoError(`Could not play video: ${e.message}. Ensure your browser allows autoplay or try clicking play manually. The AI-generated video does not include embedded audio; the audio plays alongside.`);
+            setVideoError(`Could not play video: ${e.message}. Ensure your browser allows autoplay or try clicking play manually.`);
           });
           videoElement.requestFullscreen().catch(e => {
             console.warn("Could not enter fullscreen:", e);
@@ -206,6 +206,41 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
     setShowVideoPlayer(true); // Keep player visible to show error message
   }, []);
 
+  const handleDownloadVideo = useCallback(() => {
+    if (greeting.videoUrl) {
+      const link = document.createElement('a');
+      link.href = greeting.videoUrl;
+      link.download = `eGreetz_video_${greeting.id}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  }, [greeting.videoUrl, greeting.id]);
+
+  const handleDownloadAudio = useCallback(() => {
+    if (greeting.audioUrl && greeting.audioUrl.startsWith('data:audio/pcm;base64,')) {
+      try {
+        const base64Audio = greeting.audioUrl.split(',')[1];
+        const pcmData = decode(base64Audio);
+        const wavBlob = createWavBlobFromPCM(pcmData, OUTPUT_AUDIO_SAMPLE_RATE, 1);
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(wavBlob);
+        link.download = `eGreetz_audio_${greeting.id}.wav`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href); // Clean up the Blob URL
+      } catch (error) {
+        console.error('Error downloading audio:', error);
+        alert('Failed to download audio. Please try again.');
+      }
+    } else {
+      alert('No downloadable audio available in the correct format.');
+    }
+  }, [greeting.audioUrl, greeting.id]);
+
+
   return (
     <div className="relative bg-gray-800 rounded-lg shadow-xl p-6 mb-6 border border-gray-700 overflow-hidden">
       <h3 className="text-3xl font-bold text-center text-indigo-300 mb-4">{greeting.occasion}</h3>
@@ -278,14 +313,14 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
               <p className="text-white text-lg">Buffering video for synchronized playback...</p>
-              <p className="text-gray-400 text-sm mt-1">This ensures audio and video start together.</p>
+              <p className="text-gray-400 text-sm mt-1">This ensures audio and video start together. Note: The video itself does not contain embedded audio.</p>
             </div>
           )}
           {videoError && (
             <div className="absolute inset-0 bg-red-900 bg-opacity-90 border border-red-700 text-red-200 px-4 py-3 rounded-lg flex flex-col items-center justify-center text-center z-10" role="alert">
               <strong className="font-bold">Video Error:</strong>
               <span className="block sm:inline ml-2">{videoError}</span>
-              <p className="text-sm mt-2">The generated video from the AI does not include embedded audio. The audio plays simultaneously alongside the video. Please check your browser's console for more details.</p>
+              <p className="text-sm mt-2">The AI-generated video does not include embedded audio. The audio plays simultaneously alongside the video. Please check your browser's console for more details.</p>
               <button
                 onClick={handleCloseVideoPlayer}
                 className="mt-4 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200"
@@ -318,6 +353,40 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
           </div>
         </div>
       )}
+
+      <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6 border-t border-gray-700 pt-6">
+        {greeting.videoUrl && (
+          <Button
+            onClick={handleDownloadVideo}
+            variant="secondary"
+            className="w-full sm:w-auto"
+            aria-label="Download generated video"
+            title="Download Video (No Audio)"
+          >
+            <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              <path fillRule="evenodd" d="M10 2a1 1 0 011 1v7a1 1 0 11-2 0V3a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Download Video
+          </Button>
+        )}
+        {greeting.audioUrl && (
+          <Button
+            onClick={handleDownloadAudio}
+            variant="secondary"
+            className="w-full sm:w-auto"
+            aria-label="Download generated audio"
+            title="Download Audio (WAV)"
+          >
+            <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L10 11.586l2.293-2.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              <path fillRule="evenodd" d="M10 2a1 1 0 011 1v7a1 1 0 11-2 0V3a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Download Audio
+          </Button>
+        )}
+      </div>
+
 
       <div className="absolute bottom-2 left-2 text-gray-500 text-xs italic opacity-80">
         created by e-Greetz
