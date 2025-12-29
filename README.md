@@ -144,20 +144,20 @@ e-Greetz uses Firebase for storing greeting data and uploaded images.
     *   Under "Your apps," click on "Web" (`</>`) to add a web app. Register your app.
     *   Copy the `firebaseConfig` object.
 
-5.  **Update `services/firebaseService.ts`**:
-    *   Open `src/services/firebaseService.ts`.
-    *   Replace the placeholder `firebaseConfig` object with your actual Firebase configuration:
+5.  **Update Environment Variables for Firebase**:
+    *   Instead of directly modifying `src/services/firebaseService.ts`, you will provide your Firebase configuration via environment variables.
+    *   Create or update your `.env` file in the root directory of your project with your Firebase details (replacing placeholders with your actual values):
 
-    ```typescript
-    const firebaseConfig = {
-      apiKey: "YOUR_FIREBASE_API_KEY",
-      authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
-      projectId: "YOUR_FIREBASE_PROJECT_ID",
-      storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
-      appId: "YOUR_FIREBASE_APP_ID"
-    };
     ```
+    VITE_FIREBASE_API_KEY="YOUR_FIREBASE_API_KEY"
+    VITE_FIREBASE_AUTH_DOMAIN="YOUR_FIREBASE_AUTH_DOMAIN"
+    VITE_FIREBASE_PROJECT_ID="YOUR_FIREBASE_PROJECT_ID"
+    VITE_FIREBASE_STORAGE_BUCKET="YOUR_FIREBASE_STORAGE_BUCKET"
+    VITE_FIREBASE_MESSAGING_SENDER_ID="YOUR_FIREBASE_MESSAGING_SENDER_ID"
+    VITE_FIREBASE_APP_ID="YOUR_FIREBASE_APP_ID"
+    VITE_FIREBASE_MEASUREMENT_ID="YOUR_FIREBASE_MEASUREMENT_ID"
+    ```
+    *   Note the `VITE_` prefix for these variables. Vite requires this prefix for client-side environment variables to be exposed.
 
 ### 5. Run the application locally
 
@@ -203,12 +203,33 @@ Fill in the service details. This is where you tell Render how to build and run 
 
 ### 5. Add Environment Variables
 
-In the "Environment" section of your Render service settings, add the following:
+In the "Environment" section of your Render service settings, add the following **key-value pairs**:
 
 *   **Key**: `API_KEY`
 *   **Value**: Your Google Gemini API key (e.g., `AIzaSy...`)
 
-This is crucial for the application to interact with the Gemini API in the deployed environment.
+*   **Key**: `VITE_FIREBASE_API_KEY`
+*   **Value**: Your Firebase API Key (e.g., `AIzaSy...`)
+
+*   **Key**: `VITE_FIREBASE_AUTH_DOMAIN`
+*   **Value**: Your Firebase Auth Domain (e.g., `egreetz-d0846.firebaseapp.com`)
+
+*   **Key**: `VITE_FIREBASE_PROJECT_ID`
+*   **Value**: Your Firebase Project ID (e.g., `egreetz-d0846`)
+
+*   **Key**: `VITE_FIREBASE_STORAGE_BUCKET`
+*   **Value**: Your Firebase Storage Bucket (e.g., `egreetz-d0846.appspot.com`)
+
+*   **Key**: `VITE_FIREBASE_MESSAGING_SENDER_ID`
+*   **Value**: Your Firebase Messaging Sender ID (e.g., `546450368214`)
+
+*   **Key**: `VITE_FIREBASE_APP_ID`
+*   **Value**: Your Firebase App ID (e.g., `1:546450368214:web:2e0827d27d3c0506174b77`)
+
+*   **Key**: `VITE_FIREBASE_MEASUREMENT_ID` (Optional, if you use Analytics)
+*   **Value**: Your Firebase Measurement ID (e.g., `G-MRV9FYGGEQ`)
+
+These are crucial for the application to interact with the Gemini API and Firebase in the deployed environment.
 
 ### 6. Deploy
 

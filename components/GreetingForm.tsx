@@ -271,6 +271,8 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
       }
       // Store as data URL for immediate playback in GreetingCard
       const audioUrl = `data:audio/pcm;base64,${base64Audio}`; 
+      console.log(`Generated audio base64 string length: ${base64Audio.length}`);
+
 
       setLoadingAudio(false);
       setVideoGenerationMessage('Audio generated. Now generating cinematic video (this may take a few minutes)...');
@@ -296,20 +298,25 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
         },
       };
 
+      let videoGenerationRequest;
 
       // For more complex scenarios, prompt can be combined with image
       if (uploadedImageUrl) {
         const imageBytes = (await fetch(uploadedImageUrl).then(res => res.blob()).then(blobToBase64)); // Convert back to base64 for API
-        operation = await ai.models.generateVideos({
+        videoGenerationRequest = {
           ...baseVideoPayload,
           image: {
             imageBytes: imageBytes,
             mimeType: imageFile!.type,
           },
-        });
+        };
       } else {
-        operation = await ai.models.generateVideos(baseVideoPayload);
+        videoGenerationRequest = baseVideoPayload;
       }
+
+      console.log("Sending video generation request payload:", videoGenerationRequest);
+      operation = await ai.models.generateVideos(videoGenerationRequest);
+
 
       while (!operation.done) {
         setVideoGenerationMessage(`Generating video... Please wait (status: ${operation.metadata?.state || 'in progress'}).`);
@@ -435,7 +442,7 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
             aria-describedby="image-upload-description"
           />
           <p id="image-upload-description" className="text-xs text-gray-500 mt-1">
-            Max file size: 5MB
+            Max file size: 5MB. The image will be incorporated into the video; it will not lip-sync.
           </p>
           {previewImageUrl && (
             <div className="mt-4">

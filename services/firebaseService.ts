@@ -4,16 +4,17 @@ import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, order
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Greeting } from '../types';
 
-// TODO: Replace with your Firebase configuration
-// You can get this from your Firebase project settings
+// Firebase configuration using environment variables
+// These variables must be defined in your .env file (Vite will pick them up if prefixed with VITE_)
+// and set in your hosting environment (e.g., Render.com environment variables).
 const firebaseConfig = {
-  apiKey: "AIzaSyDUXkZHySvB2S1aiLBXK5nW5aD9GNBQT7g",
-  authDomain: "egreetz-d0846.firebaseapp.com",
-  projectId: "egreetz-d0846",
-  storageBucket: "egreetz-d0846.firebasestorage.app",
-  messagingSenderId: "546450368214",
-  appId: "1:546450368214:web:2e0827d27d3c0506174b77",
-  measurementId: "G-MRV9FYGGEQ"
+  apiKey: process.env.VITE_FIREBASE_API_KEY,
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.VITE_FIREBASE_APP_ID,
+  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 let app: FirebaseApp;
@@ -22,6 +23,12 @@ let storage;
 
 export const initFirebase = () => {
   if (!app) {
+    // Check if essential Firebase config is available
+    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+      console.error("Firebase configuration is missing essential values. Check your environment variables.");
+      // Optionally, throw an error or handle gracefully
+      return; 
+    }
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     storage = getStorage(app);
