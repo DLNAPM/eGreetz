@@ -13,18 +13,16 @@ interface GreetingCardProps {
 const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false); // New state for video player visibility
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null); // For native audio playback (not currently used for PCM)
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
 
-  // Function to play audio from base64 PCM data
-  const handlePlayAudio = useCallback(async () => {
-    if (!greeting.audioUrl) return;
-
-    stopAllAudio(); // Stop any other playing audio or video audio
-    setIsPlayingAudio(true);
-    setShowVideoPlayer(false); // Hide video player if audio is played separately
-    setVideoError(null); // Clear video error if playing audio
+  // Internal helper to play audio without managing `isPlayingAudio` state directly
+  const _playAudioInternal = useCallback(async () => {
+    if (!greeting.audioUrl) {
+      console.warn("No audio URL available for playback.");
+      return;
+    }
 
     // If it's a data URL, decode and play as PCM
     if (greeting.audioUrl.startsWith('data:audio/pcm;base64,')) {
@@ -36,40 +34,72 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
           OUTPUT_AUDIO_SAMPLE_RATE,
           1
         );
-        // playAudioBuffer manages setting up source, connecting, and starting,
-        // and also adds it to a global set for stopAllAudio.
-        await playAudioBuffer(audioBuffer);
-        // The `playAudioBuffer` function currently does not return a promise that resolves when audio finishes.
-        // We'll rely on global `stopAllAudio` and assume audio plays.
-        // A more robust solution would involve modifying playAudioBuffer to return the source and add an 'ended' listener.
+        await playAudioBuffer(audioBuffer); // This manages global audio sources
       } catch (error) {
-        console.error('Error playing PCM audio:', error);
-        setIsPlayingAudio(false);
+        console.error('Error playing PCM audio internally:', error);
+        throw error;
       }
     } else {
-      // For standard audio formats if we ever generated them (unlikely with current setup)
+      // Fallback for standard audio formats if ever generated (not current setup)
       if (audioRef.current) {
         audioRef.current.src = greeting.audioUrl;
-        audioRef.current.play().catch(e => console.error("Error playing audio:", e));
+        await audioRef.current.play().catch(e => {
+          console.error("Error playing audio internally (native):", e);
+          throw e;
+        });
       }
     }
   }, [greeting.audioUrl]);
 
-  const handlePauseAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
+  // Function to play/pause audio (for standalone audio button)
+  const handlePlayAudio = useCallback(async () => {
+    stopAllAudio(); // Stop all existing audio, including any video-synced audio
+    if (videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause(); // Pause video if playing
     }
-    stopAllAudio(); // Stop custom PCM playback too
+    setVideoError(null); // Clear video error if playing audio separately
+    setIsPlayingAudio(true);
+    setShowVideoPlayer(false); // Hide video player if audio is played separately
+
+    try {
+      await _playAudioInternal();
+    } catch (e) {
+      setIsPlayingAudio(false);
+      console.error("Failed to play audio:", e);
+    }
+    // We don't set isPlayingAudio to false here on audio `ended` event.
+    // This is handled by a global listener in `audioUtils.ts` or when another media starts/stops.
+  }, [_playAudioInternal]);
+
+  const handlePauseAudio = useCallback(() => {
+    stopAllAudio(); // Stop custom PCM playback
+    if (audioRef.current) {
+      audioRef.current.pause(); // Stop native HTML audio
+    }
     setIsPlayingAudio(false);
   }, []);
 
-  const handlePlayVideo = useCallback(() => {
-    stopAllAudio(); // Stop any audio playing when video starts
+  // Function to play video and simultaneously start audio
+  const handlePlayVideo = useCallback(async () => {
+    stopAllAudio(); // Stop any standalone audio playback
+    if (audioRef.current) {
+      audioRef.current.pause(); // Stop native HTML audio
+    }
     setIsPlayingAudio(false); // Reset audio state
     setVideoError(null); // Clear previous video error
     setShowVideoPlayer(true); // Show the video player
 
-    // Wait for the video element to be in the DOM
+    // Start audio simultaneously if available
+    if (greeting.audioUrl) {
+      try {
+        await _playAudioInternal(); // Start audio
+      } catch (e) {
+        console.error("Error starting synchronized audio for video:", e);
+        // Don't block video playback, but log the error
+      }
+    }
+
+    // Then start video
     setTimeout(() => {
       if (videoRef.current) {
         videoRef.current.load(); // Ensure video is loaded
@@ -78,14 +108,13 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
           setVideoError(`Could not play video: ${e.message}. Check browser console for details.`);
         });
         // Optional: requestFullscreen after play to prevent issues with browser autoplay policies
-        // If play() succeeds, then request fullscreen.
         videoRef.current.requestFullscreen().catch(e => {
           console.warn("Could not enter fullscreen:", e);
-          // Don't set error, as video might still play in inline mode
         });
       }
     }, 50); // Small delay to ensure render
-  }, []);
+  }, [greeting.audioUrl, _playAudioInternal]);
+
 
   const handleCloseVideoPlayer = useCallback(() => {
     if (videoRef.current) {
@@ -94,13 +123,17 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
         document.exitFullscreen().catch(e => console.warn("Could not exit fullscreen:", e));
       }
     }
+    stopAllAudio(); // Stop any audio that was playing with the video
+    if (audioRef.current) {
+      audioRef.current.pause(); // Stop native HTML audio
+    }
+    setIsPlayingAudio(false); // Reset audio state
     setShowVideoPlayer(false);
     setVideoError(null);
   }, []);
 
-
   useEffect(() => {
-    // Event listener for <audio> element to update state
+    // Event listener for native <audio> element to update state (if ever used)
     const audioEl = audioRef.current;
     if (audioEl) {
       const onEnded = () => setIsPlayingAudio(false);
@@ -188,7 +221,7 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
             <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded relative mb-4" role="alert">
               <strong className="font-bold">Video Error:</strong>
               <span className="block sm:inline ml-2">{videoError}</span>
-              <p className="text-sm mt-2">Possible causes: Invalid API Key (requires paid account), network issues, or video generation failure. Please check your browser's console for more details.</p>
+              <p className="text-sm mt-2">Possible causes: Invalid API Key (requires paid account), network issues, or video generation failure. The generated video from the AI does not include embedded audio. The audio will play alongside the video. Please check your browser's console for more details.</p>
             </div>
           )}
           <video
@@ -228,7 +261,7 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
           <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd" />
         </svg>
       </Button>
-      {/* Hidden audio element for browser's native controls if needed (e.g., for non-PCM audio) */}
+      {/* Hidden audio element for browser's native controls (e.g., for non-PCM audio, not currently used) */}
       <audio ref={audioRef} className="hidden" onEnded={() => setIsPlayingAudio(false)}></audio>
     </div>
   );

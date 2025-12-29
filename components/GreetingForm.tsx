@@ -287,10 +287,9 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
       const baseVideoPayload = {
         model: veoModel,
         prompt: videoPrompt,
-        audio: { // Include the generated audio in the video payload
-          audioBytes: base64Audio,
-          mimeType: `audio/pcm;rate=${OUTPUT_AUDIO_SAMPLE_RATE}`, // Correct MIME type for the generated PCM audio
-        },
+        // Removed `audio` field as the `generateVideos` method for Veo models
+        // does not currently support embedding audio directly.
+        // Audio will be played alongside the video on the client-side.
         config: {
           numberOfVideos: 1,
           resolution: '720p',
@@ -340,7 +339,7 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
         occasion,
         message,
         imageUrl: uploadedImageUrl,
-        audioUrl,
+        audioUrl, // Save the audio URL separately
         videoUrl,
         voiceGender,
         voiceType,
@@ -442,7 +441,7 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
             aria-describedby="image-upload-description"
           />
           <p id="image-upload-description" className="text-xs text-gray-500 mt-1">
-            Max file size: 5MB. The image will be incorporated into the video; it will not lip-sync.
+            Max file size: 5MB. The image will be incorporated into the visual background of the video. The generated audio will play alongside the video; the image will not lip-sync.
           </p>
           {previewImageUrl && (
             <div className="mt-4">
