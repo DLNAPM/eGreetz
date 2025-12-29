@@ -269,7 +269,8 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
       if (!base64Audio) {
         throw new Error('Could not generate audio from message.');
       }
-      const audioUrl = `data:audio/pcm;base64,${base64Audio}`; // Store as data URL for immediate playback
+      // Store as data URL for immediate playback in GreetingCard
+      const audioUrl = `data:audio/pcm;base64,${base64Audio}`; 
 
       setLoadingAudio(false);
       setVideoGenerationMessage('Audio generated. Now generating cinematic video (this may take a few minutes)...');
@@ -278,36 +279,36 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
       await onApiKeyPrompt(); // Ensure API key is selected before generating video
 
       const videoPrompt = VIDEO_BACKGROUND_PROMPTS[occasion] || VIDEO_BACKGROUND_PROMPTS.Default;
-
       const veoModel = 'veo-3.1-fast-generate-preview'; // Default for general video generation
       let operation;
+
+      const baseVideoPayload = {
+        model: veoModel,
+        prompt: videoPrompt,
+        audio: { // Include the generated audio in the video payload
+          audioBytes: base64Audio,
+          mimeType: `audio/pcm;rate=${OUTPUT_AUDIO_SAMPLE_RATE}`, // Correct MIME type for the generated PCM audio
+        },
+        config: {
+          numberOfVideos: 1,
+          resolution: '720p',
+          aspectRatio: '16:9',
+        },
+      };
+
 
       // For more complex scenarios, prompt can be combined with image
       if (uploadedImageUrl) {
         const imageBytes = (await fetch(uploadedImageUrl).then(res => res.blob()).then(blobToBase64)); // Convert back to base64 for API
         operation = await ai.models.generateVideos({
-          model: veoModel,
-          prompt: videoPrompt,
+          ...baseVideoPayload,
           image: {
             imageBytes: imageBytes,
             mimeType: imageFile!.type,
           },
-          config: {
-            numberOfVideos: 1,
-            resolution: '720p',
-            aspectRatio: '16:9',
-          },
         });
       } else {
-        operation = await ai.models.generateVideos({
-          model: veoModel,
-          prompt: videoPrompt,
-          config: {
-            numberOfVideos: 1,
-            resolution: '720p',
-            aspectRatio: '16:9',
-          },
-        });
+        operation = await ai.models.generateVideos(baseVideoPayload);
       }
 
       while (!operation.done) {
