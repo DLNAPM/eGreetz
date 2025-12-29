@@ -12,15 +12,19 @@ interface GreetingCardProps {
 
 const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false); // New state for video player visibility
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
 
   // Function to play audio from base64 PCM data
   const handlePlayAudio = useCallback(async () => {
     if (!greeting.audioUrl) return;
 
-    stopAllAudio(); // Stop any other playing audio
+    stopAllAudio(); // Stop any other playing audio or video audio
     setIsPlayingAudio(true);
+    setShowVideoPlayer(false); // Hide video player if audio is played separately
+    setVideoError(null); // Clear video error if playing audio
 
     // If it's a data URL, decode and play as PCM
     if (greeting.audioUrl.startsWith('data:audio/pcm;base64,')) {
@@ -32,19 +36,18 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
           OUTPUT_AUDIO_SAMPLE_RATE,
           1
         );
-        const source = getOutputAudioContext().createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(getOutputAudioContext().destination);
-        source.onended = () => setIsPlayingAudio(false);
-        source.start();
-        // Add to global set for stopAllAudio functionality if needed
-        // (This would require modifying stopAllAudio in audioUtils to accept specific sources or clear all)
+        // playAudioBuffer manages setting up source, connecting, and starting,
+        // and also adds it to a global set for stopAllAudio.
+        await playAudioBuffer(audioBuffer);
+        // The `playAudioBuffer` function currently does not return a promise that resolves when audio finishes.
+        // We'll rely on global `stopAllAudio` and assume audio plays.
+        // A more robust solution would involve modifying playAudioBuffer to return the source and add an 'ended' listener.
       } catch (error) {
         console.error('Error playing PCM audio:', error);
         setIsPlayingAudio(false);
       }
     } else {
-      // For standard audio formats if we ever generated them
+      // For standard audio formats if we ever generated them (unlikely with current setup)
       if (audioRef.current) {
         audioRef.current.src = greeting.audioUrl;
         audioRef.current.play().catch(e => console.error("Error playing audio:", e));
@@ -59,6 +62,42 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
     stopAllAudio(); // Stop custom PCM playback too
     setIsPlayingAudio(false);
   }, []);
+
+  const handlePlayVideo = useCallback(() => {
+    stopAllAudio(); // Stop any audio playing when video starts
+    setIsPlayingAudio(false); // Reset audio state
+    setVideoError(null); // Clear previous video error
+    setShowVideoPlayer(true); // Show the video player
+
+    // Wait for the video element to be in the DOM
+    setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.load(); // Ensure video is loaded
+        videoRef.current.play().catch(e => {
+          console.error("Error playing video:", e);
+          setVideoError(`Could not play video: ${e.message}. Check browser console for details.`);
+        });
+        // Optional: requestFullscreen after play to prevent issues with browser autoplay policies
+        // If play() succeeds, then request fullscreen.
+        videoRef.current.requestFullscreen().catch(e => {
+          console.warn("Could not enter fullscreen:", e);
+          // Don't set error, as video might still play in inline mode
+        });
+      }
+    }, 50); // Small delay to ensure render
+  }, []);
+
+  const handleCloseVideoPlayer = useCallback(() => {
+    if (videoRef.current) {
+      videoRef.current.pause(); // Pause video when closing
+      if (document.fullscreenElement === videoRef.current) {
+        document.exitFullscreen().catch(e => console.warn("Could not exit fullscreen:", e));
+      }
+    }
+    setShowVideoPlayer(false);
+    setVideoError(null);
+  }, []);
+
 
   useEffect(() => {
     // Event listener for <audio> element to update state
@@ -76,9 +115,21 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
         audioEl.removeEventListener('pause', onPause);
       };
     }
-  }, []);
+
+    // Cleanup video player state if greeting changes or component unmounts
+    return () => {
+      handleCloseVideoPlayer(); // Ensure video is paused and hidden
+    };
+  }, [greeting.id, handleCloseVideoPlayer]); // Re-run effect if greeting ID changes
 
   const formattedDate = new Date(greeting.createdAt).toLocaleString();
+
+  // Handle video loading errors
+  const handleVideoError = useCallback((event: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.error("Video element error:", event);
+    setVideoError("Failed to load video. It might be unavailable or corrupt. Check console for details.");
+    setShowVideoPlayer(true); // Keep player visible to show error message
+  }, []);
 
   return (
     <div className="relative bg-gray-800 rounded-lg shadow-xl p-6 mb-6 border border-gray-700 overflow-hidden">
@@ -118,25 +169,51 @@ const GreetingCard: React.FC<GreetingCardProps> = ({ greeting, onDelete }) => {
         )}
 
         {greeting.videoUrl && (
-          <>
-            <Button
-              onClick={() => {
-                videoRef.current?.requestFullscreen();
-                videoRef.current?.play();
-              }}
-              className="w-full sm:w-auto"
-            >
-              <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2 6a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2V6zM2 14a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zM14 14a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2z" />
-              </svg>
-              Play Cinematic Video
-            </Button>
-            <video ref={videoRef} src={greeting.videoUrl} controls className="hidden w-full max-w-lg mx-auto mt-4 rounded-md shadow-lg" aria-label="Cinematic greeting video"></video>
-          </>
+          <Button
+            onClick={handlePlayVideo} // Use the new handler
+            className="w-full sm:w-auto"
+            aria-controls={`video-player-${greeting.id}`}
+          >
+            <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 6a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2V6zM2 14a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zM14 14a2 2 0 012-2h4a2 2 0 012 2v2a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2z" />
+            </svg>
+            Play Cinematic Video
+          </Button>
         )}
       </div>
 
-      <div className="absolute bottom-2 right-2 text-gray-500 text-xs italic opacity-80">
+      {showVideoPlayer && greeting.videoUrl && (
+        <div className="mt-4 p-4 bg-gray-900 rounded-lg">
+          {videoError && (
+            <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded relative mb-4" role="alert">
+              <strong className="font-bold">Video Error:</strong>
+              <span className="block sm:inline ml-2">{videoError}</span>
+              <p className="text-sm mt-2">Possible causes: Invalid API Key (requires paid account), network issues, or video generation failure. Please check your browser's console for more details.</p>
+            </div>
+          )}
+          <video
+            ref={videoRef}
+            id={`video-player-${greeting.id}`}
+            src={greeting.videoUrl}
+            controls
+            className="w-full max-w-lg mx-auto rounded-md shadow-lg"
+            aria-label="Cinematic greeting video player"
+            onError={handleVideoError}
+          ></video>
+          <div className="flex justify-center mt-4">
+            <Button
+              onClick={handleCloseVideoPlayer}
+              variant="secondary"
+              className="w-full sm:w-auto"
+              aria-label="Close video player"
+            >
+              Close Video
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="absolute bottom-2 left-2 text-gray-500 text-xs italic opacity-80">
         created by e-Greetz
       </div>
 
