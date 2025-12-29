@@ -7,12 +7,13 @@ import { Greeting } from '../types';
 // TODO: Replace with your Firebase configuration
 // You can get this from your Firebase project settings
 const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
-  projectId: "YOUR_FIREBASE_PROJECT_ID",
-  storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
-  appId: "YOUR_FIREBASE_APP_ID"
+  apiKey: "AIzaSyDUXkZHySvB2S1aiLBXK5nW5aD9GNBQT7g",
+  authDomain: "egreetz-d0846.firebaseapp.com",
+  projectId: "egreetz-d0846",
+  storageBucket: "egreetz-d0846.firebasestorage.app",
+  messagingSenderId: "546450368214",
+  appId: "1:546450368214:web:2e0827d27d3c0506174b77",
+  measurementId: "G-MRV9FYGGEQ"
 };
 
 let app: FirebaseApp;
