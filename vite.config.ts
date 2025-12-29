@@ -28,5 +28,6 @@ export default defineConfig({
   preview: { // Also add host for the preview server used by `npm run preview`
     host: '0.0.0.0',
     port: 3000,
+    allowedHosts: ['egreetz.onrender.com'], // Add your Render host here
   }
 });
