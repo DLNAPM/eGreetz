@@ -27,12 +27,13 @@ export enum VoiceType {
 }
 
 // Global window object augmentation for AI Studio specific functions
-export interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
 declare global {
+  // Moved AIStudio interface inside declare global to resolve potential conflicts
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
     aistudio?: AIStudio;
   }

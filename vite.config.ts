@@ -21,7 +21,12 @@ export default defineConfig({
     outDir: 'dist',
   },
   server: {
+    host: '0.0.0.0', // This is the crucial line to add/update
     open: true,
+    port: 3000,
+  },
+  preview: { // Also add host for the preview server used by `npm run preview`
+    host: '0.0.0.0',
     port: 3000,
   }
 });
