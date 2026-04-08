@@ -2,24 +2,65 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
 import { Greeting } from '../types';
-
-// Firebase configuration using environment variables
-// These variables must be defined in your .env file (Vite will pick them up if prefixed with VITE_)
-// and set in your hosting environment (e.g., Render.com environment variables).
-const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY,
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.VITE_FIREBASE_APP_ID,
-  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID,
-};
+import firebaseConfig from '../firebase-applet-config.json';
 
 let app: FirebaseApp;
-let db;
-let storage;
+let db: any;
+let storage: any;
+let auth: any;
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string;
+    email?: string | null;
+    emailVerified?: boolean;
+    isAnonymous?: boolean;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData.map((provider: any) => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 export const initFirebase = () => {
   if (!app) {
@@ -30,8 +71,9 @@ export const initFirebase = () => {
       return; 
     }
     app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
+    db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
     storage = getStorage(app);
+    auth = getAuth(app);
     console.log("Firebase initialized.");
   }
 };
@@ -46,7 +88,7 @@ export const addGreeting = async (greeting: Omit<Greeting, 'id' | 'createdAt'>):
     console.log("Document written with ID: ", docRef.id);
     return { id: docRef.id, createdAt: Date.now(), ...greeting };
   } catch (e) {
-    console.error("Error adding document: ", e);
+    handleFirestoreError(e, OperationType.CREATE, 'greetings');
     throw e;
   }
 };
@@ -73,7 +115,7 @@ export const getGreetings = async (): Promise<Greeting[]> => {
     });
     return greetings;
   } catch (e) {
-    console.error("Error getting documents: ", e);
+    handleFirestoreError(e, OperationType.LIST, 'greetings');
     throw e;
   }
 };
@@ -102,7 +144,7 @@ export const getGreetingById = async (id: string): Promise<Greeting | null> => {
       return null;
     }
   } catch (e) {
-    console.error("Error getting document by ID: ", e);
+    handleFirestoreError(e, OperationType.GET, `greetings/${id}`);
     throw e;
   }
 };
@@ -113,7 +155,7 @@ export const deleteGreeting = async (id: string): Promise<void> => {
     await deleteDoc(doc(db, "greetings", id));
     console.log("Document successfully deleted!");
   } catch (e) {
-    console.error("Error removing document: ", e);
+    handleFirestoreError(e, OperationType.DELETE, `greetings/${id}`);
     throw e;
   }
 };

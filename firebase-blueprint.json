@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "Greeting": {
+      "title": "Greeting",
+      "description": "A generated greeting with video and audio.",
+      "type": "object",
+      "properties": {
+        "occasion": {
+          "type": "string",
+          "description": "The occasion for the greeting."
+        },
+        "message": {
+          "type": "string",
+          "description": "The text message of the greeting."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Optional URL of the uploaded image."
+        },
+        "audioUrl": {
+          "type": "string",
+          "description": "Optional URL of the generated audio."
+        },
+        "videoUrl": {
+          "type": "string",
+          "description": "Optional URL of the generated video."
+        },
+        "voiceGender": {
+          "type": "string",
+          "description": "The gender of the voice."
+        },
+        "voiceType": {
+          "type": "string",
+          "description": "The type of the voice."
+        },
+        "createdAt": {
+          "type": "timestamp",
+          "description": "The time the greeting was created."
+        }
+      },
+      "required": ["occasion", "message", "voiceGender", "voiceType", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/greetings/{greetingId}": {
+      "schema": {
+        "$ref": "Greeting"
+      },
+      "description": "Stores all generated greetings."
+    }
+  }
+}

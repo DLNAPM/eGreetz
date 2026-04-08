@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: greetings
+    // Document ID: auto-generated
+    // Fields:
+    //   - occasion: string (required, max 100 chars)
+    //   - message: string (required, max 2000 chars)
+    //   - imageUrl: string (optional, max 1000 chars)
+    //   - audioUrl: string (optional, max 10000000 chars)
+    //   - videoUrl: string (optional, max 1000 chars)
+    //   - voiceGender: string (required, 'Male' or 'Female')
+    //   - voiceType: string (required, max 50 chars)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    function isValidGreeting() {
+      let allowedFields = ['occasion', 'message', 'imageUrl', 'audioUrl', 'videoUrl', 'voiceGender', 'voiceType', 'createdAt'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             isValidStringLength('occasion', 1, 100) &&
+             isValidStringLength('message', 1, 2000) &&
+             isValidOptionalString('imageUrl', 1, 1000) &&
+             isValidOptionalString('audioUrl', 1, 10000000) &&
+             isValidOptionalString('videoUrl', 1, 1000) &&
+             request.resource.data.voiceGender in ['Male', 'Female'] &&
+             isValidStringLength('voiceType', 1, 50) &&
+             request.resource.data.createdAt is timestamp;
+    }
+
+    match /greetings/{greetingId} {
+      // Allow public read for sharing greetings
+      allow read: if true;
+      // Allow public create with validation
+      allow create: if isValidGreeting();
+      // Allow public delete (since there's no auth, anyone can delete for now, or we can restrict it)
+      // Actually, let's allow delete for now to make the app work as it did before.
+      allow delete: if true;
+      allow update: if false;
+    }
+  }
+}

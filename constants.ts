@@ -53,13 +53,13 @@ export const getVoiceConfig = (gender: VoiceGender, type: VoiceType) => {
 
 
 export const VIDEO_BACKGROUND_PROMPTS: { [key: string]: string } = {
-  'Happy Birthday': 'Background video of colorful balloons dropping and confetti falling with festive lights.',
-  'Merry Christmas': 'Background video of gentle snowfall, twinkling Christmas lights, and a cozy fireplace scene.',
-  'Happy Anniversary': 'Background video of elegant rose petals falling, soft romantic lighting, and subtle sparkles.',
-  'Happy New Years': 'Background video of vibrant fireworks exploding in the night sky, champagne popping, and noise makers.',
-  'Congratulations on your Promotions': 'Background video of shimmering golden confetti, subtle celebratory lights, and a sophisticated atmosphere.',
-  'Congratulations on your Graduation': 'Background video of graduation caps being thrown in the air, joyous crowds cheering, and bright sunshine.',
-  'Default': 'A cheerful and celebratory background with dynamic lights and abstract shapes.', // Fallback for any unlisted occasion
+  'Happy Birthday': 'Colorful balloons and confetti.',
+  'Merry Christmas': 'Gentle snowfall and twinkling lights.',
+  'Happy Anniversary': 'Elegant rose petals falling.',
+  'Happy New Years': 'Vibrant fireworks in the night sky.',
+  'Congratulations on your Promotions': 'Shimmering golden confetti.',
+  'Congratulations on your Graduation': 'Graduation caps in the air.',
+  'Default': 'A cheerful celebratory background.',
 };
 
 export const MAX_MESSAGE_LENGTH = 1000;

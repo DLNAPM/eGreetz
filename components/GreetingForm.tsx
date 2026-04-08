@@ -303,11 +303,13 @@ const GreetingForm: React.FC<GreetingFormProps> = ({
       if (uploadedImageUrl) {
         const imageBytes = (await fetch(uploadedImageUrl).then(res => res.blob()).then(blobToBase64)); // Convert back to base64 for API
         videoGenerationRequest = {
-          ...baseVideoPayload,
+          model: veoModel,
+          // Omit prompt when image is provided to avoid model generation errors due to prompt/image mismatch
           image: {
             imageBytes: imageBytes,
             mimeType: imageFile!.type,
           },
+          config: baseVideoPayload.config,
         };
       } else {
         videoGenerationRequest = baseVideoPayload;
